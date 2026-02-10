@@ -1,0 +1,1136 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Public Portal - RapidCare</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script defer src="/js/client.js"></script>
+
+  <style>
+    /* Page-specific overrides */
+    .hospital-card {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border-top: 4px solid var(--primary-color);
+    }
+
+    .hospital-card .card-body {
+      flex: 1;
+    }
+
+    .hospital-card .card-actions {
+      margin-top: var(--spacing-md);
+      display: flex;
+      gap: var(--spacing-sm);
+      flex-wrap: wrap;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.35rem 0.75rem;
+      border-radius: 2rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      gap: 0.25rem;
+    }
+
+    .status-available {
+      background: #d1e7dd;
+      color: #0f5132;
+    }
+
+    .status-busy {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-full {
+      background: #f8d7da;
+      color: #842029;
+    }
+
+    .doctor-list-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .doctor-list-item:last-child {
+      border-bottom: none;
+    }
+
+    .doctor-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: #e9ecef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    .hero-small {
+      background: linear-gradient(135deg, var(--primary-color), #6610f2);
+      color: white;
+      padding: 3rem 0;
+      text-align: center;
+      margin-bottom: 2rem;
+      border-radius: 0 0 1rem 1rem;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container nav-container">
+      <div class="flex items-center gap-sm">
+        <a href="/" class="flex items-center gap-sm" style="text-decoration: none;">
+          <img src="/images/logo.png" alt="RapidCare Logo" class="logo">
+          <span style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">RapidCare</span>
+        </a>
+      </div>
+      <div>
+        <a href="/" class="btn btn-outline btn-sm">Home</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="hero-small">
+    <div class="container">
+      <h1>Find Medical Care</h1>
+      <p class="mb-0" style="opacity: 0.9;">Locate nearby hospitals, check bed availability, and request emergency
+        services.</p>
+    </div>
+  </div>
+
+  <!-- Nearest Hospital Banner -->
+  <div class="container mt-3">
+    <div id="nearest-hospital-banner" class="card"
+      style="display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+      <div style="flex: 1;">
+        <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 4px;">📍 Nearest Hospital</div>
+        <div id="nearest-hospital-name" style="font-size: 1.3rem; font-weight: 700;">Finding...</div>
+        <div id="nearest-hospital-distance" style="font-size: 1rem; opacity: 0.95; margin-top: 4px;"></div>
+        <div id="nearest-hospital-address" style="font-size: 0.85rem; opacity: 0.9; margin-top: 6px; display: none;"></div>
+        <div id="nearest-hospital-phone" style="font-size: 0.85rem; opacity: 0.9; margin-top: 4px; display: none;"></div>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button onclick="viewNearestHospital()" id="view-nearest-btn" class="btn"
+          style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); flex: 1;">
+          View Details
+        </button>
+        <button onclick="navigateToNearestHospital()" id="navigate-nearest-btn" class="btn"
+          style="background: rgba(255,255,255,0.3); color: white; border: 1px solid rgba(255,255,255,0.4); display: none;">
+          🗺️ Navigate Now
+        </button>
+      </div>
+    </div>
+
+    <!-- Location Permission Banner -->
+    <div id="location-request-banner" class="card"
+      style="background: #fff3cd; border: 1px solid #ffc107; color: #856404;">
+      <div class="flex justify-between items-center">
+        <div style="flex: 1;">
+          <strong>📍 Enable Location</strong>
+          <p class="mb-0 text-sm">Allow location access to find the nearest hospital</p>
+        </div>
+        <button onclick="requestLocationPermission()" class="btn btn-warning btn-sm">
+          Enable Location
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mt-4 mb-5">
+    <!-- Hospitals Section -->
+    <div id="section-hospitals" class="portal-section animate-fade-in">
+      <div class="flex justify-between items-center mb-3">
+        <h2>Nearby Hospitals</h2>
+        <div style="width: 100%; max-width: 400px;">
+          <input id="q" class="form-control" placeholder="🔍 Search by name, city, or service..."
+            oninput="filterHospitals()" />
+        </div>
+      </div>
+
+      <div id="list" class="grid grid-auto-fit gap-md">
+        <!-- Hospital cards will be injected here -->
+        <div class="text-center text-muted" style="grid-column: 1/-1; padding: 2rem;">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2">Loading hospitals...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emergency Request Section -->
+    <div id="section-emergency-request" class="portal-section animate-fade-in" style="display: none;">
+      <div class="flex justify-between items-center mb-3">
+        <h2>Emergency Request</h2>
+        <button class="btn btn-outline" onclick="showSection('hospitals')">← Back to Hospitals</button>
+      </div>
+
+      <div class="card" style="max-width: 800px; margin: 0 auto; border-top: 4px solid var(--danger-color);">
+        <div class="card-header bg-light">
+          <div class="flex items-center gap-md">
+            <img src="/images/emergency.png" alt="Emergency" style="width: 48px; height: 48px;">
+            <div>
+              <h3 class="text-danger mb-0">Submit Emergency Alert</h3>
+              <p class="text-muted mb-0 text-sm">Fill out the details below to alert nearby hospitals immediately.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-md mt-3">
+          <div class="form-group">
+            <label class="form-label">Patient Name</label>
+            <input id="emergency-patient-name" class="form-control" placeholder="Full Name" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Age</label>
+            <input id="emergency-patient-age" type="number" class="form-control" placeholder="Age" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Gender</label>
+            <select id="emergency-patient-gender" class="form-control">
+              <option value="">Select Gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Emergency Type</label>
+            <select id="emergency-type" class="form-control">
+              <option value="">Select Type</option>
+              <option value="Cardiac">Cardiac (Heart)</option>
+              <option value="Trauma">Trauma / Accident</option>
+              <option value="Respiratory">Respiratory (Breathing)</option>
+              <option value="Neurological">Neurological (Brain)</option>
+              <option value="General">General Emergency</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column: 1/-1;">
+            <label class="form-label">Symptoms / Condition</label>
+            <textarea id="emergency-symptoms" class="form-control" rows="2"
+              placeholder="Describe the condition briefly..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contact Number</label>
+            <input id="emergency-contact" class="form-control" placeholder="Mobile Number" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Preferred Hospital</label>
+            <select id="emergency-hospital" class="form-control">
+              <option value="">Nearest Available (Recommended)</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column: 1/-1;">
+            <label class="form-label">Current Location / Address</label>
+            <textarea id="emergency-address" class="form-control" rows="2"
+              placeholder="Enter current location..."></textarea>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <button onclick="submitPublicEmergency()" class="btn btn-danger btn-block"
+            style="padding: 1rem; font-size: 1.1rem;">
+            🚨 Send Emergency Alert
+          </button>
+        </div>
+
+        <div id="emergency-response" class="mt-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hospital Details Modal -->
+  <div id="hospital-modal" class="modal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div class="bg-white p-4 rounded shadow-lg"
+      style="width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+      <div class="flex justify-between items-center mb-3 border-bottom pb-2">
+        <h3 id="modal-h-name" class="mb-0">Hospital Name</h3>
+        <button onclick="closeHospitalModal()" class="btn btn-sm btn-outline">✕</button>
+      </div>
+      <div id="modal-content">
+        <!-- Details injected here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allHospitals = [];
+
+    document.addEventListener('DOMContentLoaded', function () {
+      loadAllHospitals();
+      setupRealTimeListeners();
+    });
+
+    function showSection(sectionName) {
+      document.querySelectorAll('.portal-section').forEach(el => el.style.display = 'none');
+      const target = document.getElementById('section-' + sectionName);
+      if (target) target.style.display = 'block';
+
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (sectionName === 'emergency-request') loadEmergencyForm();
+    }
+
+    async function loadAllHospitals() {
+      try {
+        const hospitals = await api('/api/hospital');
+        allHospitals = hospitals;
+        displayHospitals(hospitals);
+      } catch (e) {
+        console.error('Error loading hospitals:', e);
+        document.getElementById('list').innerHTML = `
+          <div class="alert alert-danger" style="grid-column: 1/-1;">
+            Failed to load hospitals. Please check your connection.
+          </div>`;
+      }
+    }
+
+    function filterHospitals() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      if (!q) { displayHospitals(allHospitals); return; }
+
+      const filter = (s) => (s || '').toLowerCase().includes(q);
+      const filtered = allHospitals.filter(h =>
+        filter(h.name) ||
+        filter(h.hospitalId) ||
+        filter(h.address?.city) ||
+        (h.services || []).some(filter)
+      );
+      displayHospitals(filtered);
+    }
+
+    function displayHospitals(hospitals) {
+      const container = document.getElementById('list');
+      container.innerHTML = '';
+
+      if (hospitals.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center" style="grid-column: 1/-1; padding: 2rem;">No hospitals found matching your search.</div>';
+        return;
+      }
+
+      hospitals.forEach(h => {
+        const el = document.createElement('div');
+        el.className = 'card hospital-card';
+
+        el.innerHTML = `
+          <div class="card-body">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-primary mb-0" style="font-size: 1.25rem;">${h.name || h.hospitalId}</h3>
+              <img src="/images/hospital.png" alt="Icon" style="width: 24px; height: 24px; opacity: 0.5;">
+            </div>
+            <p class="text-muted" style="font-size: 0.9rem;">
+              📍 ${h.address?.city || 'City'}, ${h.address?.state || 'State'}
+            </p>
+            
+            <div class="mb-3">
+              <div id="bed-${h.hospitalId}" class="status-badge status-busy">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Checking beds...
+              </div>
+            </div>
+
+            <div style="font-size: 0.9rem;" class="mb-3">
+              <strong>Services:</strong>
+              <span class="text-muted">${(h.services || []).slice(0, 3).join(', ') || 'General'}</span>
+            </div>
+            
+            <div id="doc-${h.hospitalId}" class="mt-3 pt-3 border-top">
+              <small class="text-muted">Loading doctors...</small>
+            </div>
+          </div>
+          
+          <div class="card-actions">
+            <button class="btn btn-outline btn-sm" style="flex:1;" onclick="callHospital('${h.contact}')">📞 Call</button>
+            <button class="btn btn-outline btn-sm" style="flex:1;" onclick="viewOnMap('${h.googleMapUrl}', '${h.name}')">🗺️ Map</button>
+            <button class="btn btn-info btn-sm" style="flex:1;" onclick="viewHospitalDetails('${h.hospitalId}')">ℹ️ Details</button>
+            <button class="btn btn-danger btn-sm" style="flex:1;" onclick="openEmergency('${h.hospitalId}')">🚨 Emergency</button>
+          </div>
+        `;
+
+        container.appendChild(el);
+        loadBedCount(h.hospitalId);
+        loadDoctors(h.hospitalId);
+      });
+    }
+
+    async function loadBedCount(hospitalId) {
+      try {
+        const beds = await api(`/api/beds/${hospitalId}`);
+        const total = beds.length;
+        const occupied = beds.filter(b => b.status === 'Occupied').length;
+        const vacant = total - occupied;
+
+        // Calculate by type
+        const icuBeds = beds.filter(b => b.bedType === 'ICU');
+        const icuVacant = icuBeds.filter(b => b.status !== 'Occupied').length;
+        const generalBeds = beds.filter(b => b.bedType === 'General');
+        const generalVacant = generalBeds.filter(b => b.status !== 'Occupied').length;
+
+        const el = document.getElementById(`bed-${hospitalId}`);
+        if (el) {
+          if (vacant > 0) {
+            el.innerHTML = `
+              <div style="font-weight: 600; color: #198754; font-size: 1rem;">
+                🟢 ${vacant} / ${total} Beds Available
+              </div>
+              <div style="font-size: 0.85rem; margin-top: 4px; color: #6c757d;">
+                ${icuBeds.length > 0 ? `ICU: ${icuVacant} available` : ''}
+                ${icuBeds.length > 0 && generalBeds.length > 0 ? ' | ' : ''}
+                ${generalBeds.length > 0 ? `General: ${generalVacant} available` : ''}
+              </div>
+            `;
+            el.className = 'status-badge status-available';
+            el.style.display = 'block';
+            el.style.textAlign = 'left';
+          } else {
+            el.innerHTML = `
+              <div style="font-weight: 600; color: #dc3545; font-size: 1rem;">
+                🔴 All Beds Occupied (${total})
+              </div>
+            `;
+            el.className = 'status-badge status-full';
+          }
+        }
+      } catch (e) {
+        const el = document.getElementById(`bed-${hospitalId}`);
+        if (el) el.innerText = 'Beds info unavailable';
+      }
+    }
+
+    async function loadDoctors(hospitalId) {
+      try {
+        const list = await api(`/api/doctors/${hospitalId}`);
+        const availableDocs = list.filter(d => d.availability === 'Available').slice(0, 2);
+
+        const el = document.getElementById(`doc-${hospitalId}`);
+        if (el) {
+          if (availableDocs.length > 0) {
+            el.innerHTML = availableDocs.map(d => `
+              <div class="doctor-list-item">
+                <div class="doctor-avatar">👨‍⚕️</div>
+                <div style="line-height: 1.2;">
+                  <div style="font-weight: 600; font-size: 0.9rem;">${d.name}</div>
+                  <div style="font-size: 0.8rem;" class="text-muted">${d.speciality}</div>
+                </div>
+              </div>
+            `).join('') + (list.length > 2 ? `<div class="text-center mt-1"><small class="text-primary">+${list.length - 2} more</small></div>` : '');
+          } else {
+            el.innerHTML = '<small class="text-muted">No doctors currently available</small>';
+          }
+        }
+      } catch (e) {
+        const el = document.getElementById(`doc-${hospitalId}`);
+        if (el) el.innerHTML = '<small class="text-muted">Doctor info unavailable</small>';
+      }
+    }
+
+    function callHospital(contact) {
+      if (!contact || contact === 'undefined') {
+        notify('Contact number not available for this hospital', 'warning');
+        return;
+      }
+      window.location.href = `tel:${contact}`;
+    }
+
+    function viewOnMap(url, name) {
+      if (url && url.startsWith('http')) {
+        window.open(url, '_blank');
+      } else {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' hospital')}`, '_blank');
+      }
+    }
+
+    function openEmergency(hospitalId) {
+      showSection('emergency-request');
+      setTimeout(() => {
+        const select = document.getElementById('emergency-hospital');
+        if (select) select.value = hospitalId;
+        document.getElementById('emergency-patient-name').focus();
+      }, 100);
+    }
+
+    function loadEmergencyForm() {
+      const select = document.getElementById('emergency-hospital');
+      const currentVal = select.value;
+      select.innerHTML = '<option value="">Nearest Available (Recommended)</option>';
+      allHospitals.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h.hospitalId;
+        opt.textContent = h.name;
+        select.appendChild(opt);
+      });
+      if (currentVal) select.value = currentVal;
+    }
+
+    async function submitPublicEmergency() {
+      const name = document.getElementById('emergency-patient-name').value.trim();
+      const type = document.getElementById('emergency-type').value;
+      const contact = document.getElementById('emergency-contact').value.trim();
+
+      if (!name || !type || !contact) {
+        notify('Please fill in Patient Name, Emergency Type, and Contact Number.', 'warning');
+        return;
+      }
+
+      const hospitalId = document.getElementById('emergency-hospital').value || (allHospitals[0]?.hospitalId);
+      if (!hospitalId) {
+        notify('No hospitals available. Please try again later.', 'error');
+        return;
+      }
+
+      const payload = {
+        hospitalId,
+        patient: {
+          name,
+          age: document.getElementById('emergency-patient-age').value,
+          gender: document.getElementById('emergency-patient-gender').value,
+          symptoms: document.getElementById('emergency-symptoms').value,
+          emergencyType: type,
+          contactMobile: contact,
+          contactAddress: document.getElementById('emergency-address').value
+        },
+        status: 'Pending'
+      };
+
+      const respDiv = document.getElementById('emergency-response');
+      respDiv.innerHTML = '<div class="alert alert-warning">⏳ Sending emergency alert...</div>';
+
+      try {
+        const res = await fetch('/api/emergency/public', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          respDiv.innerHTML = `
+            <div class="alert alert-success">
+              <h4>✅ Alert Sent!</h4>
+              <p>Request ID: <strong>${data.emergency._id}</strong></p>
+              <p>Status: <span class="status-badge status-busy">PENDING</span></p>
+              <p class="mb-0">Please wait. Hospital staff will contact you at <strong>${contact}</strong> shortly.</p>
+            </div>
+          `;
+          startPolling(data.emergency._id);
+        } else {
+          throw new Error('Submission failed');
+        }
+      } catch (e) {
+        respDiv.innerHTML = `<div class="alert alert-danger">❌ Error: ${e.message}</div>`;
+      }
+    }
+
+    let pollInterval;
+    function startPolling(id) {
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await api(`/api/emergency/detail/${id}`);
+          if (res.success && res.emergency.status !== 'Pending') {
+            clearInterval(pollInterval);
+            const e = res.emergency;
+            const color = e.status === 'Accepted' ? 'success' : 'danger';
+            document.getElementById('emergency-response').innerHTML = `
+              <div class="alert alert-${color}">
+                <h4>${e.status === 'Accepted' ? '✅ Ambulance Dispatched!' : '❌ Request Declined'}</h4>
+                <p>Status: <strong>${e.status}</strong></p>
+                ${e.rejectionReason ? `<p>Reason: ${e.rejectionReason}</p>` : ''}
+              </div>
+            `;
+          }
+        } catch (e) { }
+      }, 3000);
+    }
+
+    function setupRealTimeListeners() {
+      window.socket.on('bed:publicUpdate', p => loadBedCount(p.hospitalId));
+      window.socket.on('doctor:publicUpdate', p => loadDoctors(p.hospitalId));
+      window.socket.on('hospital:publicUpdate', () => loadAllHospitals());
+    }
+
+    function viewHospitalDetails(id) {
+      const h = allHospitals.find(x => x.hospitalId === id);
+      if (!h) return;
+
+      document.getElementById('modal-h-name').innerText = h.name;
+      const content = document.getElementById('modal-content');
+
+      content.innerHTML = `
+        <div class="grid grid-cols-2 gap-md">
+          <div>
+            <strong>📍 Full Address:</strong>
+            <p class="text-muted">
+              ${h.address?.street || 'N/A'}, ${h.address?.city || 'N/A'}<br>
+              ${h.address?.state || 'N/A'} ${h.address?.pincode || ''}
+            </p>
+          </div>
+          <div>
+            <strong>📞 Contact Information:</strong>
+            <p class="text-muted">
+              Phone: ${h.contact || 'N/A'}<br>
+              ${h.email ? `Email: ${h.email}` : ''}
+            </p>
+          </div>
+        </div>
+
+        ${(h.gallery && h.gallery.length > 0) ? `
+          <div class="mt-3">
+            <strong>🖼️ Hospital Gallery:</strong>
+            <div class="flex flex-wrap gap-sm mt-2" style="max-height: 200px; overflow-y: auto;">
+              ${h.gallery.map(img => `
+                <img src="${img.startsWith('http') ? img : '/uploads/hospital-gallery/' + id + '/' + img}" 
+                     alt="Hospital" 
+                     style="width: 150px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #dee2e6;" 
+                     onerror="this.onerror=null; this.src='/images/hospital.png'; this.style.objectFit='contain'; this.style.padding='10px';">
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+        
+        <div class="mt-3">
+          <strong>🏥 Services:</strong>
+          <div class="flex flex-wrap gap-sm mt-1">
+            ${(h.services || []).map(s => `<span class="badge" style="background:#e7f1ff; color:#0b6efd;">${s}</span>`).join('')}
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <strong>🔬 Facilities:</strong>
+          <div class="flex flex-wrap gap-sm mt-1">
+            ${(h.facilities || []).map(s => `<span class="badge" style="background:#f8f9fa; color:#212529; border:1px solid #dee2e6;">${s}</span>`).join('')}
+          </div>
+        </div>
+
+        ${(h.treatment && h.treatment.length > 0) ? `
+          <div class="mt-3">
+            <strong>💊 Specializations:</strong>
+            <div class="flex flex-wrap gap-sm mt-1">
+              ${h.treatment.map(s => `<span class="badge" style="background:#e7f1ff; color:#0b6efd;">${s}</span>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        ${(h.surgery && h.surgery.length > 0) ? `
+          <div class="mt-3">
+            <strong>🔪 Surgical Procedures:</strong>
+            <p class="text-muted" style="font-size: 0.9rem;">${h.surgery.join(', ')}</p>
+          </div>
+        ` : ''}
+        
+        <div class="mt-3">
+          <strong>🛡️ Insurance Accepted:</strong>
+          <p class="text-muted">${(h.insurance || []).join(', ') || 'Not specified'}</p>
+        </div>
+
+        ${h.openingHours ? `
+          <div class="mt-3">
+            <strong>🕐 Opening Hours:</strong>
+            <p class="text-muted">${h.openingHours}</p>
+          </div>
+        ` : ''}
+
+        <div class="mt-3" style="background: #f8f9fa; padding: 12px; border-radius: 8px;">
+          <div id="modal-bed-stats-${id}" class="text-muted">
+            <small>Loading bed statistics...</small>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <strong>👨‍⚕️ Medical Staff (${loadDoctorCountText(id)}):</strong>
+          <div id="modal-docs-${id}" class="mt-2">Loading...</div>
+        </div>
+      `;
+
+      document.getElementById('hospital-modal').style.display = 'flex';
+      loadModalBedStats(id);
+      loadModalDoctors(id);
+    }
+
+    function loadDoctorCountText(id) {
+      // This will be updated when doctors load
+      return 'Loading';
+    }
+
+    async function loadModalBedStats(id) {
+      try {
+        const beds = await api(`/api/beds/${id}`);
+        const total = beds.length;
+        const occupied = beds.filter(b => b.status === 'Occupied').length;
+        const vacant = total - occupied;
+        const icuBeds = beds.filter(b => b.bedType === 'ICU');
+        const icuVacant = icuBeds.filter(b => b.status !== 'Occupied').length;
+        const generalBeds = beds.filter(b => b.bedType === 'General');
+        const generalVacant = generalBeds.filter(b => b.status !== 'Occupied').length;
+
+        const container = document.getElementById(`modal-bed-stats-${id}`);
+        if (container) {
+          container.innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+              <div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #0b6efd;">${total}</div>
+                <div style="font-size: 0.85rem; color: #6c757d;">Total Beds</div>
+              </div>
+              <div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #198754;">${vacant}</div>
+                <div style="font-size: 0.85rem; color: #6c757d;">Available</div>
+              </div>
+              <div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #dc3545;">${occupied}</div>
+                <div style="font-size: 0.85rem; color: #6c757d;">Occupied</div>
+              </div>
+              ${icuBeds.length > 0 ? `
+                <div>
+                  <div style="font-size: 1.5rem; font-weight: 700; color: #0dcaf0;">${icuVacant}/${icuBeds.length}</div>
+                  <div style="font-size: 0.85rem; color: #6c757d;">ICU Available</div>
+                </div>
+              ` : ''}
+              ${generalBeds.length > 0 ? `
+                <div>
+                  <div style="font-size: 1.5rem; font-weight: 700; color: #20c997;">${generalVacant}/${generalBeds.length}</div>
+                  <div style="font-size: 0.85rem; color: #6c757d;">General Available</div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }
+      } catch (e) {
+        const container = document.getElementById(`modal-bed-stats-${id}`);
+        if (container) container.innerHTML = '<small class="text-danger">Error loading bed statistics</small>';
+      }
+    }
+
+    function closeHospitalModal() {
+      document.getElementById('hospital-modal').style.display = 'none';
+    }
+
+    async function loadModalDoctors(id) {
+      try {
+        const docs = await api(`/api/doctors/${id}`);
+        const container = document.getElementById(`modal-docs-${id}`);
+        if (docs.length === 0) {
+          container.innerHTML = '<p class="text-muted">No doctors listed.</p>';
+          return;
+        }
+        container.innerHTML = docs.map(d => `
+          <div class="flex items-center gap-sm border-bottom py-2">
+            <div class="doctor-avatar" style="width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: #e9ecef; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              ${d.photoUrl ? `
+                <img src="${d.photoUrl.startsWith('http') ? d.photoUrl : d.photoUrl.startsWith('/') ? d.photoUrl : '/uploads/' + d.photoUrl}" 
+                     alt="${d.name}" 
+                     style="width: 100%; height: 100%; object-fit: cover;"
+                     onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='👨‍⚕️';">
+              ` : '👨‍⚕️'}
+            </div>
+            <div>
+              <div style="font-weight: 600;">${d.name}</div>
+              <div class="text-muted text-sm">${d.speciality} (${d.qualification})</div>
+              <div class="text-xs badge" style="background:${d.availability === 'Available' ? '#d1e7dd' : '#e2e3e5'}; color:${d.availability === 'Available' ? '#0f5132' : '#41464b'}">${d.availability}</div>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        document.getElementById(`modal-docs-${id}`).innerText = 'Error loading doctors.';
+      }
+    }
+
+    // ========================================
+    // NEAREST HOSPITAL FINDER
+    // ========================================
+
+    let nearestHospitalData = null;
+    const GOOGLE_GEOCODING_API_KEY = 'YOUR_API_KEY_HERE'; // Replace with actual key if using geocoding
+
+    // 1. Extract lat/lng from Google Maps URL
+    function extractLatLng(url) {
+      if (!url) return null;
+
+      // Pattern 1: @lat,lng format (e.g., @21.2567,81.6294)
+      const match1 = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (match1) {
+        return { lat: parseFloat(match1[1]), lng: parseFloat(match1[2]) };
+      }
+
+      // Pattern 2: q=lat,lng format (e.g., q=21.2567,81.6294)
+      const match2 = url.match(/q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (match2) {
+        return { lat: parseFloat(match2[1]), lng: parseFloat(match2[2]) };
+      }
+
+      // Pattern 3: ll=lat,lng format
+      const match3 = url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (match3) {
+        return { lat: parseFloat(match3[1]), lng: parseFloat(match3[2]) };
+      }
+
+      return null;
+    }
+
+    // 2. Geocode place name to lat/lng (with retry)
+    async function getLatLngFromPlace(placeName, retryCount = 0) {
+      try {
+        // If no API key, skip geocoding
+        if (!GOOGLE_GEOCODING_API_KEY || GOOGLE_GEOCODING_API_KEY === 'YOUR_API_KEY_HERE') {
+          console.warn('Geocoding API key not configured, skipping:', placeName);
+          return null;
+        }
+
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(placeName)}&key=${GOOGLE_GEOCODING_API_KEY}`
+        );
+
+        if (!res.ok) throw new Error('Geocoding API failed');
+
+        const data = await res.json();
+
+        if (data.status === 'OK' && data.results.length > 0) {
+          return data.results[0].geometry.location; // { lat, lng }
+        }
+
+        throw new Error(`Geocoding returned status: ${data.status}`);
+      } catch (e) {
+        console.error('Geocoding error for', placeName, ':', e);
+
+        // Retry once
+        if (retryCount === 0) {
+          console.log('Retrying geocoding for:', placeName);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1s delay
+          return getLatLngFromPlace(placeName, 1);
+        }
+
+        return null;
+      }
+    }
+
+    // 3. Calculate distance using Haversine formula (in kilometers)
+    function getDistance(lat1, lng1, lat2, lng2) {
+      const R = 6371; // Earth's radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) *
+        Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2;
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // 4. Find nearest hospital (main function)
+    async function findNearestHospital(userLat, userLng) {
+      try {
+        console.log('🔍 Finding nearest hospital for coordinates:', userLat, userLng);
+        
+        // Fetch all hospitals from backend
+        const hospitals = await api('/api/hospital');
+        console.log('📋 Fetched hospitals:', hospitals?.length || 0);
+
+        if (!hospitals || hospitals.length === 0) {
+          console.error('❌ No hospitals found in database');
+          notify('No hospitals found in database. Please contact administrator.', 'error');
+          return null;
+        }
+
+        let nearest = null;
+        let minDist = Infinity;
+        let hospitalsWithCoords = 0;
+
+        for (const h of hospitals) {
+          try {
+            let coords = null;
+
+            // First, try to use stored coordinates from database
+            if (h.location && h.location.lat && h.location.lng) {
+              coords = { lat: parseFloat(h.location.lat), lng: parseFloat(h.location.lng) };
+              console.log(`✅ Using stored coordinates for ${h.name}:`, coords);
+            } else {
+              // Fallback: Try to find map link in various fields
+              const url = h.googleMapUrl || h.mapLink || h.location || h.locationLink ||
+                (h.address && typeof h.address === 'string' ? h.address : null);
+
+              if (!url) {
+                console.warn(`⚠️ No map link found for hospital: ${h.name || h.hospitalId}`);
+                continue;
+              }
+
+              // Try to extract coordinates from URL
+              coords = extractLatLng(url);
+              
+              if (coords) {
+                console.log(`✅ Extracted coordinates from URL for ${h.name}:`, coords);
+              } else {
+                // If extraction fails, try geocoding (only if API key is available)
+                const searchQuery = h.name + ', ' + (h.address?.city || h.address?.state || 'Raipur, Chhattisgarh');
+                console.log(`🔄 Attempting geocoding for: ${searchQuery}`);
+                coords = await getLatLngFromPlace(searchQuery);
+                
+                if (coords) {
+                  console.log(`✅ Geocoded coordinates for ${h.name}:`, coords);
+                }
+              }
+            }
+
+            if (!coords || isNaN(coords.lat) || isNaN(coords.lng)) {
+              console.warn(`⚠️ Invalid coordinates for ${h.name}:`, coords);
+              continue;
+            }
+
+            hospitalsWithCoords++;
+            
+            // Calculate distance using Haversine formula
+            const dist = getDistance(userLat, userLng, coords.lat, coords.lng);
+            console.log(`📏 Distance to ${h.name}: ${dist.toFixed(2)} km`);
+
+            if (dist < minDist) {
+              minDist = dist;
+              nearest = {
+                hospital: h,
+                distance: dist,
+                coordinates: coords
+              };
+            }
+          } catch (e) {
+            console.error(`❌ Error processing hospital ${h.name}:`, e);
+            // Continue to next hospital without breaking
+          }
+        }
+
+        if (hospitalsWithCoords === 0) {
+          console.error('❌ No hospitals with valid coordinates found');
+          notify('No hospitals with valid location data found. Please ensure hospitals have Google Maps links.', 'error');
+          return null;
+        }
+
+        if (!nearest) {
+          console.error('❌ Could not determine nearest hospital');
+          notify('Unable to calculate nearest hospital. Please try again.', 'error');
+          return null;
+        }
+
+        console.log('✅ Nearest hospital found:', nearest.hospital.name, `(${nearest.distance.toFixed(2)} km)`);
+        return nearest;
+      } catch (e) {
+        console.error('❌ Error finding nearest hospital:', e);
+        notify('Error finding nearest hospital: ' + e.message, 'error');
+        return null;
+      }
+    }
+
+    // 5. Request location permission
+    function requestLocationPermission() {
+      if (!navigator.geolocation) {
+        notify('Geolocation is not supported by your browser. Please use a modern browser.', 'error');
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        onLocationSuccess,
+        onLocationError,
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000 // 5 minutes
+        }
+      );
+    }
+
+    // 6. Handle location success
+    async function onLocationSuccess(position) {
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+
+      console.log('User location:', userLat, userLng);
+
+      // Hide location request banner
+      document.getElementById('location-request-banner').style.display = 'none';
+
+      // Show nearest hospital banner with loading state
+      const banner = document.getElementById('nearest-hospital-banner');
+      banner.style.display = 'block';
+      document.getElementById('nearest-hospital-name').innerText = 'Finding nearest hospital...';
+      document.getElementById('nearest-hospital-distance').innerText = 'Please wait...';
+
+      // Find nearest hospital (async, won't freeze UI)
+      const result = await findNearestHospital(userLat, userLng);
+
+      if (result) {
+        nearestHospitalData = result;
+        const h = result.hospital;
+        document.getElementById('nearest-hospital-name').innerText = h.name || 'Unknown Hospital';
+        document.getElementById('nearest-hospital-distance').innerText = `📍 ${result.distance.toFixed(2)} km away`;
+        
+        // Show address
+        const addressParts = [];
+        if (h.address) {
+          if (typeof h.address === 'string') {
+            addressParts.push(h.address);
+          } else {
+            if (h.address.street) addressParts.push(h.address.street);
+            if (h.address.city) addressParts.push(h.address.city);
+            if (h.address.district) addressParts.push(h.address.district);
+            if (h.address.state) addressParts.push(h.address.state);
+          }
+        }
+        if (addressParts.length > 0) {
+          document.getElementById('nearest-hospital-address').innerText = `📍 ${addressParts.join(', ')}`;
+          document.getElementById('nearest-hospital-address').style.display = 'block';
+        }
+        
+        // Show phone
+        if (h.contact) {
+          document.getElementById('nearest-hospital-phone').innerText = `📞 ${h.contact}`;
+          document.getElementById('nearest-hospital-phone').style.display = 'block';
+        }
+        
+        document.getElementById('view-nearest-btn').style.display = 'block';
+        document.getElementById('navigate-nearest-btn').style.display = 'block';
+      } else {
+        document.getElementById('nearest-hospital-name').innerText = 'Unable to find nearest hospital';
+        document.getElementById('nearest-hospital-distance').innerText = 'Please check hospital data or try again';
+        document.getElementById('nearest-hospital-address').style.display = 'none';
+        document.getElementById('nearest-hospital-phone').style.display = 'none';
+        document.getElementById('view-nearest-btn').style.display = 'none';
+        document.getElementById('navigate-nearest-btn').style.display = 'none';
+      }
+    }
+
+    // 7. Handle location error
+    function onLocationError(error) {
+      console.error('❌ Location error:', error);
+
+      let message = 'Location access denied';
+      let errorType = 'error';
+
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          message = 'Location permission denied. Please enable location access in your browser settings to find the nearest hospital.';
+          errorType = 'warning';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          message = 'Location information is unavailable. Please check your GPS settings or try again.';
+          errorType = 'error';
+          break;
+        case error.TIMEOUT:
+          message = 'Location request timed out. Please try again.';
+          errorType = 'warning';
+          break;
+        default:
+          message = 'Unable to get your location. Please check your browser settings and try again.';
+          errorType = 'error';
+      }
+
+      // Show error notification
+      notify(message, errorType);
+
+      // Show error in banner
+      const banner = document.getElementById('location-request-banner');
+      banner.style.display = 'block';
+      banner.innerHTML = `
+        <div class="flex justify-between items-center">
+          <div style="flex: 1;">
+            <strong>⚠️ Location Error</strong>
+            <p class="mb-0 text-sm">${message}</p>
+          </div>
+          <button onclick="requestLocationPermission()" class="btn btn-warning btn-sm">
+            Try Again
+          </button>
+        </div>
+      `;
+      
+      // Hide nearest hospital banner
+      document.getElementById('nearest-hospital-banner').style.display = 'none';
+    }
+
+    // 8. View nearest hospital details
+    function viewNearestHospital() {
+      if (!nearestHospitalData) return;
+
+      const hospitalId = nearestHospitalData.hospital.hospitalId;
+      viewHospitalDetails(hospitalId);
+
+      // Smooth scroll to hospital list
+      setTimeout(() => {
+        document.querySelector('#section-hospitals').scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }, 100);
+    }
+
+    // Navigate to nearest hospital using Google Maps
+    function navigateToNearestHospital() {
+      if (!nearestHospitalData) return;
+      
+      const h = nearestHospitalData.hospital;
+      let mapUrl = '';
+      
+      // Use stored coordinates if available
+      if (nearestHospitalData.coordinates && nearestHospitalData.coordinates.lat && nearestHospitalData.coordinates.lng) {
+        mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${nearestHospitalData.coordinates.lat},${nearestHospitalData.coordinates.lng}`;
+      } else if (h.googleMapUrl) {
+        // Extract coordinates from Google Maps URL or use the URL directly
+        mapUrl = h.googleMapUrl;
+        if (!mapUrl.startsWith('http')) {
+          mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.name + (h.address ? ', ' + (typeof h.address === 'string' ? h.address : Object.values(h.address).filter(Boolean).join(', ')) : ''))}`;
+        }
+      } else {
+        // Fallback: search by name and address
+        const address = h.address ? (typeof h.address === 'string' ? h.address : Object.values(h.address).filter(Boolean).join(', ')) : '';
+        mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.name + (address ? ', ' + address : ''))}`;
+      }
+      
+      window.open(mapUrl, '_blank');
+    }
+
+    // 9. Auto-run on page load
+    document.addEventListener('DOMContentLoaded', function () {
+      // Try to get location automatically after hospitals load
+      setTimeout(() => {
+        if (navigator.geolocation) {
+          // Check if permission already granted
+          navigator.permissions?.query({ name: 'geolocation' }).then((result) => {
+            if (result.state === 'granted') {
+              requestLocationPermission();
+            } else {
+              // Show location request banner
+              document.getElementById('location-request-banner').style.display = 'block';
+            }
+          }).catch(() => {
+            // Permissions API not supported, show banner
+            document.getElementById('location-request-banner').style.display = 'block';
+          });
+        } else {
+          // Geolocation not supported
+          document.getElementById('location-request-banner').innerHTML = `
+            <div class="text-center text-muted">
+              <strong>⚠️ Geolocation Not Supported</strong>
+              <p class="mb-0 text-sm">Your browser doesn't support location services</p>
+            </div>
+          `;
+          document.getElementById('location-request-banner').style.display = 'block';
+        }
+      }, 1000); // Wait 1s for page to load
+    });
+  </script>
+</body>
+
+</html>
+```
