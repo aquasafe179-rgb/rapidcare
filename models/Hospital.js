@@ -1,0 +1,75 @@
+// models/Hospital.js
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+
+const addressSchema = new mongoose.Schema(
+  {
+    state: { type: String, default: '' },
+    district: { type: String, default: '' },
+    city: { type: String, default: '' },
+    street: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
+const HospitalSchema = new mongoose.Schema(
+  {
+    hospitalId: { type: String, required: true, unique: true, index: true },
+    name: { type: String, default: '' },
+    address: { type: addressSchema, default: {} },
+    contact: { type: String, default: '' },
+    googleMapUrl: { type: String, default: '' },
+    location: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null }
+    },
+    gallery: { type: [String], default: [] },
+    services: { type: [String], default: [] },
+    tests: { type: [String], default: [] },
+    insurance: { type: [String], default: [] },
+    procedures: { type: [String], default: [] },
+    facilities: { type: [String], default: [] },
+    management: { type: [String], default: [] },
+    highlights: { type: [String], default: [] },
+    treatment: { type: [String], default: [] },
+    surgery: { type: [String], default: [] },
+    therapy: { type: [String], default: [] },
+    password: { type: String, default: 'test@1234' },
+    forcePasswordChange: { type: Boolean, default: true },
+    attendanceQR: {
+      presentQR: { type: String, default: '' },
+      absentQR: { type: String, default: '' },
+      generatedAt: { type: Date }
+    }
+  },
+  { timestamps: true }
+);
+
+// Pre-save hook to hash password if modified
+HospitalSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  try {
+    // If password starts with $2b$ (bcrypt hash), assume it's already hashed (optional safety)
+    if (this.password.startsWith('$2b$')) return next();
+    
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+HospitalSchema.methods.comparePassword = async function(candidate) {
+  try {
+    // Try bcrypt comparison
+    return await bcrypt.compare(candidate, this.password);
+  } catch (err) {
+    // Fallback: simple string comparison (for legacy/plain text passwords)
+    return candidate === this.password;
+  }
+};
+
+module.exports = mongoose.model('Hospital', HospitalSchema);
+
+
